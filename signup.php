@@ -1,29 +1,20 @@
 <?php
-/**
- * Signup Page
- * Handles user registration
- */
-
 require_once 'config/config.php';
 require_once 'config/database.php';
 
-// Redirect to dashboard if already logged in
 if (isset($_SESSION['user_id'])) {
     header('Location: dashboard.php');
     exit();
 }
 
 $error = '';
-$success = '';
 
-// Handle signup form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['signup'])) {
-    $username = trim($_POST['username']);
-    $email = trim($_POST['email']);
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $username = $_POST['username'];
+    $email = $_POST['email'];
     $password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
     
-    // Validation
     if (empty($username) || empty($email) || empty($password) || empty($confirm_password)) {
         $error = 'Please fill in all fields';
     } elseif (strlen($username) < 3) {
@@ -35,30 +26,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['signup'])) {
     } elseif ($password !== $confirm_password) {
         $error = 'Passwords do not match';
     } else {
-        // Check if username or email already exists
-        $stmt = $conn->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
-        $stmt->bind_param("ss", $username, $email);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        $check_query = "SELECT id FROM users WHERE username = '$username' OR email = '$email'";
+        $check_result = mysqli_query($conn, $check_query);
         
-        if ($result->num_rows > 0) {
+        if (mysqli_num_rows($check_result) > 0) {
             $error = 'Username or email already exists';
         } else {
-            // Hash password and insert user
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $conn->prepare("INSERT INTO users (username, email, password) VALUES (?, ?, ?)");
-            $stmt->bind_param("sss", $username, $email, $hashed_password);
+            $insert_query = "INSERT INTO users (username, email, password) VALUES ('$username', '$email', '$hashed_password')";
             
-            if ($stmt->execute()) {
-                // Redirect to login with success message
+            if (mysqli_query($conn, $insert_query)) {
                 header('Location: index.php?registered=success');
                 exit();
             } else {
                 $error = 'Registration failed. Please try again.';
             }
         }
-        
-        $stmt->close();
     }
 }
 ?>

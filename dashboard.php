@@ -1,13 +1,7 @@
 <?php
-/**
- * Dashboard Page
- * Main expense tracking and AI analysis interface
- */
-
 require_once 'config/config.php';
 require_once 'config/database.php';
 
-// Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
     header('Location: index.php');
     exit();
@@ -17,80 +11,57 @@ $user_id = $_SESSION['user_id'];
 $username = $_SESSION['username'];
 $message = '';
 
-// Handle expense addition
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_expense'])) {
-    $category = trim($_POST['category']);
-    $amount = floatval($_POST['amount']);
+// Add expense
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_expense'])) {
+    $category = $_POST['category'];
+    $amount = $_POST['amount'];
     $date = $_POST['date'];
-    $description = trim($_POST['description']);
+    $description = $_POST['description'];
     
     if (empty($category) || $amount <= 0 || empty($date)) {
         $message = '<div class="message error">Please fill in all required fields correctly</div>';
     } else {
-        $stmt = $conn->prepare("INSERT INTO expenses (user_id, category, amount, date, description) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param("isdss", $user_id, $category, $amount, $date, $description);
+        $query = "INSERT INTO expenses (user_id, category, amount, date, description) VALUES ($user_id, '$category', $amount, '$date', '$description')";
         
-        if ($stmt->execute()) {
+        if (mysqli_query($conn, $query)) {
             $message = '<div class="message success">Expense added successfully!</div>';
         } else {
             $message = '<div class="message error">Failed to add expense</div>';
         }
-        
-        $stmt->close();
     }
 }
 
-// Handle expense deletion
-if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
-    $expense_id = intval($_GET['delete']);
-    $stmt = $conn->prepare("DELETE FROM expenses WHERE id = ? AND user_id = ?");
-    $stmt->bind_param("ii", $expense_id, $user_id);
-    $stmt->execute();
-    $stmt->close();
+// Delete expense
+if (isset($_GET['delete'])) {
+    $expense_id = $_GET['delete'];
+    $delete_query = "DELETE FROM expenses WHERE id = $expense_id AND user_id = $user_id";
+    mysqli_query($conn, $delete_query);
     header('Location: dashboard.php');
     exit();
 }
 
-// Fetch all expenses for current user
-$expenses_query = "SELECT id, category, amount, date, description, created_at FROM expenses WHERE user_id = ? ORDER BY date DESC, created_at DESC";
-$stmt = $conn->prepare($expenses_query);
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$expenses_result = $stmt->get_result();
-
-// Fetch all rows and ensure we have valid data
+// Get all expenses
+$expenses_query = "SELECT id, category, amount, date, description FROM expenses WHERE user_id = $user_id ORDER BY date DESC";
+$expenses_result = mysqli_query($conn, $expenses_query);
 $expenses = [];
+
 if ($expenses_result) {
-    while ($row = $expenses_result->fetch_assoc()) {
-        // Ensure all required keys exist
-        $expenses[] = [
-            'id' => $row['id'] ?? 0,
-            'category' => $row['category'] ?? 'Uncategorized',
-            'amount' => $row['amount'] ?? 0,
-            'date' => $row['date'] ?? date('Y-m-d'),
-            'description' => $row['description'] ?? '',
-            'created_at' => $row['created_at'] ?? date('Y-m-d H:i:s')
-        ];
+    while ($row = mysqli_fetch_assoc($expenses_result)) {
+        $expenses[] = $row;
     }
 }
-$stmt->close();
 
-// Calculate summary statistics
+// Calculate totals
 $total_expenses = 0;
 $category_totals = [];
-$expense_count = count($expenses);
 
 foreach ($expenses as $expense) {
-    // Safely access array keys with null coalescing
-    $amount = isset($expense['amount']) ? floatval($expense['amount']) : 0;
-    $category = isset($expense['category']) ? $expense['category'] : 'Uncategorized';
+    $total_expenses += $expense['amount'];
     
-    $total_expenses += $amount;
-    
-    if (!isset($category_totals[$category])) {
-        $category_totals[$category] = 0;
+    if (!isset($category_totals[$expense['category']])) {
+        $category_totals[$expense['category']] = 0;
     }
-    $category_totals[$category] += $amount;
+    $category_totals[$expense['category']] += $expense['amount'];
 }
 ?>
 <!DOCTYPE html>
@@ -126,7 +97,7 @@ foreach ($expenses as $expense) {
             </div>
             <div class="stat-card">
                 <h3>Total Entries</h3>
-                <div class="value"><?php echo $expense_count; ?></div>
+                <div class="value"><?php echo count($expenses); ?></div>
             </div>
             <div class="stat-card">
                 <h3>Categories</h3>
@@ -162,20 +133,19 @@ foreach ($expenses as $expense) {
                     </div>
                 <?php else: ?>
                     <?php 
-                    // Sort categories by amount for better visualization
                     arsort($category_totals);
-                    $highest_category = array_key_first($category_totals);
+                    $highest_category = key($category_totals);
                     $highest_amount = $category_totals[$highest_category];
-                    $lowest_category = array_key_last($category_totals);
+                    end($category_totals);
+                    $lowest_category = key($category_totals);
                     $lowest_amount = $category_totals[$lowest_category];
                     $avg_per_category = $total_expenses / count($category_totals);
                     ?>
                     
-                    <!-- Quick Stats -->
                     <div class="category-stats">
                         <div class="mini-stat">
                             <span class="stat-label">Highest</span>
-                            <span class="stat-value"><?php echo htmlspecialchars($highest_category); ?> (₹<?php echo number_format($highest_amount, 0); ?>)</span>
+                            <span class="stat-value"><?php echo $highest_category; ?> (₹<?php echo number_format($highest_amount, 0); ?>)</span>
                         </div>
                         <div class="mini-stat">
                             <span class="stat-label">Average</span>
@@ -183,17 +153,16 @@ foreach ($expenses as $expense) {
                         </div>
                         <div class="mini-stat">
                             <span class="stat-label">Lowest</span>
-                            <span class="stat-value"><?php echo htmlspecialchars($lowest_category); ?> (₹<?php echo number_format($lowest_amount, 0); ?>)</span>
+                            <span class="stat-value"><?php echo $lowest_category; ?> (₹<?php echo number_format($lowest_amount, 0); ?>)</span>
                         </div>
                     </div>
                     
-                    <!-- Bar Chart View (Default) -->
                     <div id="barChart" class="chart-view active">
                         <?php foreach ($category_totals as $category => $total): ?>
                             <?php $percentage = ($total / $total_expenses) * 100; ?>
                             <div class="bar-item">
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                                    <strong><?php echo htmlspecialchars($category); ?></strong>
+                                    <strong><?php echo $category; ?></strong>
                                     <span>₹<?php echo number_format($total, 2); ?> (<?php echo number_format($percentage, 1); ?>%)</span>
                                 </div>
                                 <div class="bar-container">
@@ -205,13 +174,11 @@ foreach ($expenses as $expense) {
                         <?php endforeach; ?>
                     </div>
                     
-                    <!-- Pie Chart View -->
                     <div id="pieChart" class="chart-view">
                         <canvas id="pieCanvas" width="400" height="400"></canvas>
                         <div id="pieLegend" class="pie-legend"></div>
                     </div>
                     
-                    <!-- Table View -->
                     <div id="tableChart" class="chart-view">
                         <table class="category-table">
                             <thead>
@@ -232,7 +199,7 @@ foreach ($expenses as $expense) {
                                 ?>
                                     <tr>
                                         <td><?php echo $rank++; ?></td>
-                                        <td><strong><?php echo htmlspecialchars($category); ?></strong></td>
+                                        <td><strong><?php echo $category; ?></strong></td>
                                         <td>₹<?php echo number_format($total, 2); ?></td>
                                         <td><?php echo number_format($percentage, 1); ?>%</td>
                                         <td class="<?php echo $vs_avg >= 0 ? 'above-avg' : 'below-avg'; ?>">
@@ -244,16 +211,14 @@ foreach ($expenses as $expense) {
                         </table>
                     </div>
                     
-                    <!-- Pass data to JavaScript -->
                     <script>
-                        const categoryData = <?php echo json_encode(array_map(function($cat, $amt) {
+                        const categoryData = <?php echo json_encode(array_values(array_map(function($cat, $amt) {
                             return ['category' => $cat, 'amount' => $amt];
-                        }, array_keys($category_totals), $category_totals)); ?>;
+                        }, array_keys($category_totals), $category_totals))); ?>;
                     </script>
                 <?php endif; ?>
             </div>
             
-            <!-- AI Analysis Section -->
             <div class="card">
                 <h2>🤖 AI Analysis & Insights</h2>
                 <div class="ai-trigger">
@@ -267,7 +232,6 @@ foreach ($expenses as $expense) {
                 </div>
             </div>
             
-            <!-- Expense List -->
             <div class="card expense-list">
                 <h2>Recent Expenses</h2>
                 <?php if (empty($expenses)): ?>
@@ -288,10 +252,10 @@ foreach ($expenses as $expense) {
                         <tbody>
                             <?php foreach ($expenses as $expense): ?>
                                 <tr>
-                                    <td><?php echo isset($expense['date']) ? date('M d, Y', strtotime($expense['date'])) : 'N/A'; ?></td>
-                                    <td><?php echo isset($expense['category']) ? htmlspecialchars($expense['category']) : 'N/A'; ?></td>
+                                    <td><?php echo isset($expense['date']) ? date('M d, Y', strtotime($expense['date'])) : '-'; ?></td>
+                                    <td><?php echo isset($expense['category']) ? $expense['category'] : '-'; ?></td>
                                     <td class="amount">₹<?php echo isset($expense['amount']) ? number_format($expense['amount'], 2) : '0.00'; ?></td>
-                                    <td><?php echo isset($expense['description']) ? htmlspecialchars($expense['description'] ?: '-') : '-'; ?></td>
+                                    <td><?php echo isset($expense['description']) && $expense['description'] ? $expense['description'] : '-'; ?></td>
                                     <td>
                                         <button onclick="deleteExpense(<?php echo isset($expense['id']) ? $expense['id'] : 0; ?>)" class="delete-btn">Delete</button>
                                     </td>
@@ -304,7 +268,6 @@ foreach ($expenses as $expense) {
         </div>
     </div>
     
-    <!-- Add Expense Modal -->
     <div id="expenseModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">

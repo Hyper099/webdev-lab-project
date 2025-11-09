@@ -1,46 +1,32 @@
 <?php
-/**
- * Login Page
- * Handles user authentication
- */
-
 require_once 'config/config.php';
 require_once 'config/database.php';
 
-// Redirect to dashboard if already logged in
 if (isset($_SESSION['user_id'])) {
     header('Location: dashboard.php');
     exit();
 }
 
 $error = '';
-$success = '';
 
-// Handle login form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
-    $email = trim($_POST['email']);
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $email = $_POST['email'];
     $password = $_POST['password'];
     
     if (empty($email) || empty($password)) {
         $error = 'Please fill in all fields';
     } else {
-        // Query user from database
-        $stmt = $conn->prepare("SELECT id, username, email, password FROM users WHERE email = ?");
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        $query = "SELECT id, username, email, password FROM users WHERE email = '$email'";
+        $result = mysqli_query($conn, $query);
         
-        if ($result->num_rows === 1) {
-            $user = $result->fetch_assoc();
+        if (mysqli_num_rows($result) == 1) {
+            $user = mysqli_fetch_assoc($result);
             
-            // Verify password
             if (password_verify($password, $user['password'])) {
-                // Set session variables
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['username'] = $user['username'];
                 $_SESSION['email'] = $user['email'];
                 
-                // Redirect to dashboard
                 header('Location: dashboard.php');
                 exit();
             } else {
@@ -49,8 +35,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         } else {
             $error = 'Invalid email or password';
         }
-        
-        $stmt->close();
     }
 }
 ?>
