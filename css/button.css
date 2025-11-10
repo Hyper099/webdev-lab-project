@@ -1,0 +1,57 @@
+/**
+ * Add Expense Button Styles
+ * Styles for the main add expense button
+ */
+
+/* Add Expense Section */
+.add-expense-section {
+   display: flex;
+   justify-content: center;
+   margin: 30px 0;
+}
+
+.btn-add-expense {
+   display: inline-flex;
+   align-items: center;
+   gap: 12px;
+   background-color: #000000;
+   color: #ffffff;
+   border: 2px solid #000000;
+   border-radius: 8px;
+   padding: 16px 32px;
+   font-size: 18px;
+   font-weight: 600;
+   cursor: pointer;
+   transition: all 0.3s ease;
+   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.btn-add-expense:hover {
+   background-color: #ffffff;
+   color: #000000;
+   transform: translateY(-2px);
+   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn-add-expense:active {
+   transform: translateY(0);
+   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn-icon {
+   font-size: 24px;
+   font-weight: bold;
+   line-height: 1;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+   .btn-add-expense {
+      padding: 14px 24px;
+      font-size: 16px;
+   }
+   
+   .btn-icon {
+      font-size: 20px;
+   }
+}
